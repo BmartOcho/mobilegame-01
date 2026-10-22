@@ -14,7 +14,7 @@ Offline play against the AI needs nothing else.
 
 ## Play it online
 
-- **Web build**: https://bmartocho.github.io/mobilegame-01/ (published from this branch by `.github/workflows/pages.yml` on every push; open it on two phones and hit *Ranked siege*).
+- **Web build**: `.github/workflows/pages.yml` tests, builds and pushes the client to the `gh-pages` branch on every push. It appears at https://bmartocho.github.io/mobilegame-01/ as soon as GitHub Pages is switched on for the repo (Settings → Pages → source `gh-pages`; the repo must be public or on a Pro plan). Until then, `pnpm dev --host` and open the LAN URL on two phones, or drop `apps/web/dist` on any static host.
 - **Ladder server**: the `submit-turn` edge function and `siege_*` tables live in the Supabase project `awhrrlvbyhjvqqazidud` (currently the Printssistant-staging project; move them with the steps below when you have a dedicated project).
 
 ## Ladder server setup (any free Supabase project)
