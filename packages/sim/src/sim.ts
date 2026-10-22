@@ -4,7 +4,7 @@ import type { ShotInput, ShotResult, CastleState, RenderState, BlockDestroyedEve
 import { BEAM_MATERIALS, BLOCK_MATERIALS, PROJECTILES, projectileRadius, frameMass, sanitizeTrebuchet, sanitizeProjectile, clamp, LIMITS } from './catalog.ts';
 import { layoutCastle, computeIntegrity, BLOCK_DEPTH, type BlockDef, type CastleLayout } from './castle.ts';
 import { WindField } from './wind.ts';
-import { aeroForce } from './aero.ts';
+import { aeroForce, beamDragTorque } from './aero.ts';
 
 export type Rapier = typeof RAPIER;
 
@@ -245,9 +245,14 @@ export class ShotSim {
     const p = this.proj.translation();
     const wx = this.wind.at(p.y, this.t);
     const wy = this.wind.vertical(this.t);
-    const f = aeroForce({ radius: this.projRadius, cd: PROJECTILES[this.input.projectile.kind].cd }, pv.x, pv.y, wx, wy, this.proj.angvel());
+    const pk = PROJECTILES[this.input.projectile.kind];
+    const f = aeroForce({ radius: this.projRadius, cd: pk.cd, smooth: pk.smooth }, pv.x, pv.y, wx, wy, this.proj.angvel());
     this.proj.resetForces(false);
     this.proj.addForce({ x: f.fx, y: f.fy }, true);
+    // Air resistance on the swinging beam (a slab moving broadside).
+    const T = this.input.trebuchet;
+    this.beam.resetTorques(false);
+    this.beam.addTorque(beamDragTorque(T.beamThickness, T.longArm, T.shortArm, this.beam.angvel()), true);
 
     this.world.step(this.eq);
     this.t += DT;

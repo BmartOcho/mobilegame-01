@@ -1,8 +1,36 @@
-import { AIR_DENSITY } from './catalog.ts';
+import { AIR_DENSITY, AIR_VISCOSITY } from './catalog.ts';
 
 export interface AeroBody {
   radius: number;
+  /** Subcritical Cd. */
   cd: number;
+  smooth?: boolean;
+}
+
+/**
+ * Sphere drag coefficient vs Reynolds number. Smooth spheres undergo the drag
+ * crisis near Re ~ 3e5 (Cd 0.47 -> ~0.18, Achenbach 1972); rough surfaces
+ * trip the boundary layer early so the drop is smaller and starts near 1e5.
+ * Piecewise-linear so it is deterministic across engines.
+ */
+export function dragCoefficient(b: AeroBody, speed: number): number {
+  const re = (AIR_DENSITY * speed * 2 * b.radius) / AIR_VISCOSITY;
+  if (b.smooth) {
+    if (re < 2.0e5) return b.cd;
+    if (re < 4.0e5) return b.cd + (0.18 - b.cd) * ((re - 2.0e5) / 2.0e5);
+    return 0.18 + Math.min(0.08, (re - 4.0e5) / 4.0e6 * 0.08);
+  }
+  const low = b.cd, high = b.cd * 0.7;
+  if (re < 1.0e5) return low;
+  if (re < 2.5e5) return low + (high - low) * ((re - 1.0e5) / 1.5e5);
+  return high;
+}
+
+/** Drag torque on a slab rotating about one end: tau = -1/2 rho Cd t (L^4/4) w|w|. */
+export function beamDragTorque(thickness: number, longArm: number, shortArm: number, omega: number): number {
+  const CD_SLAB = 1.5;
+  const k = 0.5 * AIR_DENSITY * CD_SLAB * thickness * (Math.pow(longArm, 4) + Math.pow(shortArm, 4)) / 4;
+  return -k * omega * Math.abs(omega);
 }
 
 /**
@@ -23,8 +51,9 @@ export function aeroForce(
   if (speed < 1e-6) return { fx: 0, fy: 0 };
   const area = Math.PI * b.radius * b.radius;
   const q = 0.5 * AIR_DENSITY * area * speed;
-  let fx = -q * b.cd * rx;
-  let fy = -q * b.cd * ry;
+  const cd = dragCoefficient(b, speed);
+  let fx = -q * cd * rx;
+  let fy = -q * cd * ry;
 
   // Magnus
   const spinRatio = Math.abs(omega) * b.radius / speed;

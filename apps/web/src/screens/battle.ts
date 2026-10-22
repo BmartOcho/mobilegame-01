@@ -8,7 +8,7 @@ import { profile } from '../state';
 import { el, slider, button } from '../ui';
 import { Camera } from '../render/camera';
 import { drawBackdrop, Particles } from '../render/scene';
-import { drawTrebuchet, drawBlocks, poseFromRender, type TrebGeo } from '../render/trebuchet';
+import { drawTrebuchet, drawBlocks, poseFromRender, poseAtBeamAngle, type TrebGeo, type TrebPose } from '../render/trebuchet';
 import { PALETTE } from '../render/draw';
 import type { Opponent, MatchSummary } from '../opponent';
 
@@ -82,6 +82,39 @@ export function showBattle(ctx: AppCtx, opp: Opponent, opts: BattleOptions, onEn
   let shooterInput: ShotInput | null = null;
   let frameState: RenderState | null = null;
   let status: HTMLElement | null = null;
+  // Setup animation: winch the arm down, slide the stone into the pouch, pin it.
+  let setup: { t: number; done: () => void } | null = null;
+  const SETUP_WINCH = 1.8, SETUP_LOAD = 1.0, SETUP_HOLD = 0.5;
+  const SETUP_TOTAL = SETUP_WINCH + SETUP_LOAD + SETUP_HOLD;
+  function startSetup(done: () => void) {
+    setup = { t: 0, done };
+    panel.innerHTML = '';
+    status = el('p', 'small', shooterIsMe ? 'Winching the arm down…' : `${opp.name}'s crew is winching…`);
+    panel.append(status);
+  }
+  const ease = (f: number) => (f < 0 ? 0 : f > 1 ? 1 : f * f * (3 - 2 * f));
+  function setupPose(st: RenderState): TrebPose {
+    const base = poseFromRender(st);
+    if (!setup || !geo) return base;
+    const rest = Math.PI / 2 - 0.35; // long arm up, leaning toward the target
+    let cocked = st.beam.angle; // Rapier reports (-pi, pi]; winch must go the long way over the top
+    while (cocked < rest) cocked += Math.PI * 2;
+    const halfSpan = geo.pivotHeight * 0.55;
+    const pile = { x: -halfSpan - 2.2, y: geo.projectileRadius };
+    const t = setup.t;
+    if (t < SETUP_WINCH) {
+      const f = ease(t / SETUP_WINCH);
+      const phi = rest + (cocked - rest) * f;
+      const p = poseAtBeamAngle(geo, phi, base);
+      return { ...p, proj: { ...base.proj, x: pile.x, y: pile.y }, slingAlpha: 0 };
+    }
+    if (t < SETUP_WINCH + SETUP_LOAD) {
+      const f = ease((t - SETUP_WINCH) / SETUP_LOAD);
+      const px = pile.x + (base.proj.x - pile.x) * f;
+      return { ...base, proj: { ...base.proj, x: px, y: pile.y, angle: -(px - pile.x) / geo.projectileRadius }, slingAlpha: f };
+    }
+    return { ...base, slingAlpha: 1 };
+  }
 
   function makeSim(input: ShotInput, castle: CastleState) {
     sim?.free();
@@ -125,7 +158,9 @@ export function showBattle(ctx: AppCtx, opp: Opponent, opts: BattleOptions, onEn
     shooterIsMe = false; cam.flip = true;
     const eInput: ShotInput = { trebuchet: opp.trebuchet, projectile: opp.projectile, aim: { releaseAngleDeg: 40 }, wind };
     makeSim(eInput, myCastle); // show them cocked while aiming
+    const setupDone = new Promise<void>((resolve) => startSetup(resolve));
     const a = await opp.aim({ R, castle: myCastle, wind, round });
+    await setupDone;
     eInput.aim = a;
     shooterInput = eInput;
     makeSim(eInput, myCastle);
@@ -162,7 +197,7 @@ export function showBattle(ctx: AppCtx, opp: Opponent, opts: BattleOptions, onEn
         if (round >= MAX_ROUNDS) return finish(true);
         round++; wind = windFor(round);
         phase = 'aim';
-        setTimeout(() => { previewMine(); showAimPanel(); refreshBars(); }, 1000);
+        setTimeout(() => { previewMine(); startSetup(showAimPanel); refreshBars(); }, 1000);
       });
     }
   }
@@ -202,10 +237,17 @@ export function showBattle(ctx: AppCtx, opp: Opponent, opts: BattleOptions, onEn
           const rel = sim.finalResult().release!;
           if (status) status.textContent = `Released at ${rel.speed.toFixed(0)} m/s, ${rel.angleDeg.toFixed(0)}° — in flight`;
         }
-        if (sim.released) trace.push([st.projectile.x, st.projectile.y]);
+        if (sim.released) {
+          trace.push([st.projectile.x, st.projectile.y]);
+          // Firepots burn in flight: flame close to the pot, smoke trailing behind.
+          if (input.projectile.kind === 'firepot' && !impactSeen && sim.steps % 3 === 0) {
+            particles.dust(st.projectile.x, st.projectile.y, 1, 0xff9a3c, 0.35);
+            if (sim.steps % 6 === 0) particles.dust(st.projectile.x - st.projectile.vx * 0.03, st.projectile.y - st.projectile.vy * 0.03, 1, 0x55504c, 0.5);
+          }
+        }
         const res = sim.finalResult();
         if (res.destroyed.length > lastDestroyed) {
-          for (const d of res.destroyed.slice(lastDestroyed)) particles.burst(d.x, d.y, d.vx, d.vy, PALETTE[d.material], 26, 6, 0.22);
+          for (const d of res.destroyed.slice(lastDestroyed)) { particles.burst(d.x, d.y, d.vx, d.vy, PALETTE[d.material], 26, 6, 0.22); particles.dust(d.x, d.y, 10, 0xd8d0c0, 0.6); }
           lastDestroyed = res.destroyed.length;
           slowUntil = Math.max(slowUntil, sim.t + 0.25);
         }
@@ -213,6 +255,8 @@ export function showBattle(ctx: AppCtx, opp: Opponent, opts: BattleOptions, onEn
           impactSeen = true;
           if (status) status.textContent = res.impact.target === 'castle' ? `Impact on the walls at ${res.impact.speed.toFixed(0)} m/s!` : `Short — hit the ground at ${res.impact.x.toFixed(0)} m`;
           particles.burst(res.impact.x, res.impact.y, 0, 0, res.impact.target === 'ground' ? PALETTE.dirt : 0xd8d0c0, 40, 7, 0.18);
+          particles.dust(res.impact.x, res.impact.y, 28, res.impact.target === 'ground' ? 0xb9a37f : 0xd8d0c0, 1.0);
+          if (input.projectile.kind === 'firepot') { particles.burst(res.impact.x, res.impact.y, 0, 0, 0xff7a1f, 40, 5, 0.25); particles.dust(res.impact.x, res.impact.y + 0.5, 30, 0xff9a3c, 0.9); particles.dust(res.impact.x, res.impact.y + 1, 20, 0x3a3634, 1.2); }
           slowUntil = sim.t + 0.5;
         }
       }
@@ -221,6 +265,13 @@ export function showBattle(ctx: AppCtx, opp: Opponent, opts: BattleOptions, onEn
     }
     particles.update(dt);
     const st = frameState ?? sim.render();
+    if (setup) {
+      const before = setup.t;
+      setup.t += dt;
+      if (before < SETUP_WINCH && setup.t >= SETUP_WINCH && status) status.textContent = shooterIsMe ? 'Loading the pouch…' : `${opp.name}'s crew loads the pouch…`;
+      if (before < SETUP_WINCH + SETUP_LOAD && setup.t >= SETUP_WINCH + SETUP_LOAD && status) status.textContent = shooterIsMe ? 'Pinned and ready.' : `${opp.name} is sighting the shot…`;
+      if (setup.t >= SETUP_TOTAL) { const d = setup.done; setup = null; d(); }
+    }
     refreshWind(st.wind.x);
 
     // Camera
@@ -247,8 +298,8 @@ export function showBattle(ctx: AppCtx, opp: Opponent, opts: BattleOptions, onEn
       }
     }
     if (trace.length > 1) for (let i = 0; i < trace.length; i += 2) g.circle(cam.sx(trace[i][0]), cam.sy(trace[i][1]), 1.3).fill({ color: 0xffffff, alpha: 0.5 });
-    drawBlocks(g, cam, st.blocks, kinds);
-    drawTrebuchet(g, cam, geo, poseFromRender(st), input.trebuchet, input.projectile);
+    drawBlocks(g, cam, st.blocks, kinds, time);
+    drawTrebuchet(g, cam, geo, setup ? setupPose(st) : poseFromRender(st), input.trebuchet, input.projectile);
     particles.draw(g, cam);
     // Wind sock near the shooter
     const sockX = fx(-6), sockY = geo.pivotHeight + 3;
@@ -260,7 +311,7 @@ export function showBattle(ctx: AppCtx, opp: Opponent, opts: BattleOptions, onEn
   };
 
   previewMine();
-  showAimPanel();
+  startSetup(showAimPanel);
   refreshBars();
   setToast(`Round 1 — ${opp.name}'s ${opp.castle.material} castle at ${theirCastle.originX} m`, 3200);
 }

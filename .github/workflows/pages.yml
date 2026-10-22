@@ -1,0 +1,42 @@
+name: Deploy web client to GitHub Pages
+
+on:
+  push:
+    branches: [main, claude/trebuchet-foundation]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
+      - name: Build client
+        working-directory: apps/web
+        env:
+          # The anon key is public by design; the ladder is guarded server-side.
+          VITE_SUPABASE_URL: https://awhrrlvbyhjvqqazidud.supabase.co
+          VITE_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF3aHJybHZieWhqdnFxYXppZHVkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2NjMwNTgsImV4cCI6MjA5MTIzOTA1OH0.JWlsrvO2qfGNakIf6LHIFUax4zgTj8wWnvrH6SZICYY
+        run: pnpm vite build --base=/mobilegame-01/
+      - run: cp apps/web/dist/index.html apps/web/dist/404.html && touch apps/web/dist/.nojekyll
+      - name: Publish to gh-pages branch
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: apps/web/dist
+          force_orphan: true
