@@ -1,7 +1,7 @@
 import RAPIER from '@dimforge/rapier2d-deterministic-compat';
 import type { RigidBody, Collider, World, EventQueue, ImpulseJoint } from '@dimforge/rapier2d-deterministic-compat';
-import type { ShotInput, ShotResult, CastleState, RenderState, BlockDestroyedEvent, BlockState, BodyPose } from './types.ts';
-import { BEAM_MATERIALS, BLOCK_MATERIALS, PROJECTILES, projectileRadius, frameMass, sanitizeTrebuchet, sanitizeProjectile, clamp, LIMITS } from './catalog.ts';
+import type { ShotInput, ShotResult, CastleState, RenderState, BlockDestroyedEvent, BlockState, BodyPose, Failure } from './types.ts';
+import { BEAM_MATERIALS, BLOCK_MATERIALS, PROJECTILES, STAKE_CAPACITY, projectileRadius, frameMass, sanitizeTrebuchet, sanitizeProjectile, clamp, LIMITS } from './catalog.ts';
 import { layoutCastle, computeIntegrity, BLOCK_DEPTH, type BlockDef, type CastleLayout } from './castle.ts';
 import { WindField } from './wind.ts';
 import { aeroForce, beamDragTorque } from './aero.ts';
@@ -64,7 +64,19 @@ export class ShotSim {
   private settleStart = -1;
   private rotated = 0;
 
-  private result: Partial<ShotResult> = { damage: 0, destroyed: [] };
+  private result: Partial<ShotResult> = { damage: 0, destroyed: [], peakStress: 0, peakTip: 0 };
+  // Structural failure tracking
+  private beamCollider!: Collider;
+  private piece: RigidBody | null = null;
+  private pieceLength = 0;
+  private prevCwVel: Vel = { vx: 0, vy: 0 };
+  private lastTip = { x: 0, y: 0 };
+  private stress = 0;
+  private stressOver = 0;
+  private tipOver = 0;
+  private tipSteps = 0;
+  private failure: Failure | undefined;
+  private armLength: number;
   /** Stop as soon as the projectile touches anything (AI aiming / previews). */
   stopAtImpact = false;
 
@@ -85,6 +97,7 @@ export class ShotSim {
     this.eq = new R.EventQueue(true);
 
     this.projRadius = projectileRadius(this.input.projectile);
+    this.armLength = this.input.trebuchet.longArm;
     this.hangerLen = this.input.trebuchet.hangerLength;
     this.pivotY = this.input.trebuchet.pivotHeight;
 
@@ -127,7 +140,7 @@ export class ShotSim {
     const sillY = T.wheels ? wheelR + 0.15 : 0.15;
     const halfSpan = h * 0.55;
     this.world.createCollider(
-      R.ColliderDesc.cuboid(halfSpan, 0.15).setTranslation(0, sillY).setMass(frameMass(T)).setCollisionGroups(groups(G_FRAME, G_GROUND)),
+      R.ColliderDesc.cuboid(halfSpan, 0.15).setTranslation(0, sillY).setMass(frameMass(T)).setFriction(0.9).setCollisionGroups(groups(G_FRAME, G_GROUND)),
       this.frame,
     );
     if (T.wheels) {
@@ -144,7 +157,7 @@ export class ShotSim {
     const beamDesc = R.RigidBodyDesc.dynamic().setTranslation(0, h).setRotation(phi0).setCanSleep(false).setCcdEnabled(true);
     this.beam = this.world.createRigidBody(beamDesc);
     const bm = BEAM_MATERIALS[T.beamMaterial];
-    this.world.createCollider(
+    this.beamCollider = this.world.createCollider(
       R.ColliderDesc.cuboid((La + Ls) / 2, T.beamThickness / 2)
         .setTranslation((La - Ls) / 2, 0)
         .setDensity(bm.density * T.beamThickness) // 2D density * depth == thickness
@@ -254,19 +267,120 @@ export class ShotSim {
     this.beam.resetTorques(false);
     this.beam.addTorque(beamDragTorque(T.beamThickness, T.longArm, T.shortArm, this.beam.angvel()), true);
 
+    const cwv = this.cw.linvel();
+    this.prevCwVel = { vx: cwv.x, vy: cwv.y };
+
     this.world.step(this.eq);
     this.t += DT;
     this.steps++;
 
     this.handleEvents();
+    this.checkStructure({ vx: pv.x, vy: pv.y }, wx, wy);
     this.checkRelease();
     this.checkPhase();
+  }
+
+  // ------------------------------------------------------------ structure
+
+  /**
+   * Beam bending at the axle from sling tension (tip side) and counterweight
+   * pull (short side), sigma = 6M/t^3 for a square section; frame overturning
+   * from the axle reaction derived from the swinging system's momentum change.
+   * Both are low-pass filtered and must exceed the limit for several steps so
+   * a single constraint impulse (the sling snapping taut) cannot break anything.
+   */
+  private checkStructure(pvBefore: Vel, wx: number, wy: number) {
+    const T = this.input.trebuchet;
+    const t = T.beamThickness;
+    const a = this.beam.rotation();
+    const ux = Math.cos(a), uy = Math.sin(a);
+    const m = this.input.projectile.mass;
+    const g = 9.81;
+
+    // --- tip side: rope tension from projectile acceleration (minus gravity and drag)
+    let mTip = 0;
+    this.lastTip = { x: 0, y: 0 };
+    if (this.sling) {
+      const v = this.proj.linvel();
+      const ax = (v.x - pvBefore.vx) / DT, ay = (v.y - pvBefore.vy) / DT + g;
+      const pk = PROJECTILES[this.input.projectile.kind];
+      const fd = aeroForce({ radius: this.projRadius, cd: pk.cd, smooth: pk.smooth }, pvBefore.vx, pvBefore.vy, wx, wy, 0);
+      const tx = m * ax - fd.fx, ty = m * ay - fd.fy;
+      this.lastTip = { x: tx, y: ty };
+      const tip = this.tipWorld();
+      const p = this.proj.translation();
+      const sx = p.x - tip.x, sy = p.y - tip.y; const sl = Math.hypot(sx, sy) || 1;
+      const perp = Math.abs((sx / sl) * uy - (sy / sl) * ux); // |sin| between sling and beam
+      mTip = Math.hypot(tx, ty) * perp * this.armLength;
+    }
+    // --- short side: counterweight pull perpendicular to the beam
+    const cv = this.cw.linvel();
+    const cax = (cv.x - this.prevCwVel.vx) / DT, cay = (cv.y - this.prevCwVel.vy) / DT + g;
+    const fcx = T.counterweightMass * cax, fcy = T.counterweightMass * cay;
+    const mCw = Math.abs(fcx * uy - fcy * ux) * T.shortArm;
+    const sigma = (6 * Math.max(mTip, mCw)) / (t * t * t);
+    const ratio = sigma / (BEAM_MATERIALS[T.beamMaterial].strengthMPa * 1e6);
+    this.stress += (ratio - this.stress) * 0.25;
+    if (this.stress > this.result.peakStress!) this.result.peakStress = this.stress;
+    if (!this.failure && this.stress > 1) { if (++this.stressOver >= 4) this.snapBeam(); } else this.stressOver = 0;
+
+    // --- frame overturning (staked frames only; wheeled frames are simulated bodies).
+    // The beam hands the frame the sum of the rope pull and the counterweight pull
+    // (beam inertia neglected). Horizontal pull at axle height overturns; upward
+    // pull lightens the frame, downward pull and the stakes hold it.
+    if (!T.wheels && this.frame.isFixed()) {
+      const onFrameX = -(this.lastTip.x + fcx), onFrameY = -(this.lastTip.y + fcy);
+      const halfSpan = T.pivotHeight * 0.55;
+      const over = Math.abs(onFrameX) * T.pivotHeight;
+      const hold = Math.max(0, frameMass(T) * g - onFrameY) * halfSpan + STAKE_CAPACITY[T.frameMaterial];
+      const r = over / hold;
+      this.tipOver += (r - this.tipOver) * 0.25;
+      if (this.tipOver > this.result.peakTip!) this.result.peakTip = this.tipOver;
+      if (!this.failure && this.tipOver > 1) { if (++this.tipSteps >= 6) this.tipFrame(); } else this.tipSteps = 0;
+    }
+  }
+
+  private snapBeam() {
+    const R = this.R;
+    const T = this.input.trebuchet;
+    const La = this.armLength;
+    const breakAt = Math.max(0.5, La * 0.35);
+    const pieceLen = La - breakAt;
+    // Outer arm becomes a free body with the beam's velocity at its centre.
+    const a = this.beam.rotation();
+    const bp = this.beam.translation();
+    const cx = breakAt + pieceLen / 2;
+    const wx = bp.x + cx * Math.cos(a), wy = bp.y + cx * Math.sin(a);
+    const v = this.beam.velocityAtPoint({ x: wx, y: wy });
+    const piece = this.world.createRigidBody(R.RigidBodyDesc.dynamic().setTranslation(wx, wy).setRotation(a).setLinvel(v.x, v.y).setAngvel(this.beam.angvel()).setCcdEnabled(true));
+    this.world.createCollider(
+      R.ColliderDesc.cuboid(pieceLen / 2, T.beamThickness * 0.3).setDensity(BEAM_MATERIALS[T.beamMaterial].density * T.beamThickness).setFriction(0.6).setCollisionGroups(groups(G_BEAM, G_GROUND)),
+      piece,
+    );
+    this.piece = piece; this.pieceLength = pieceLen;
+    // Shorten the beam
+    this.world.removeCollider(this.beamCollider, true);
+    this.beamCollider = this.world.createCollider(
+      R.ColliderDesc.cuboid((breakAt + T.shortArm) / 2, T.beamThickness / 2).setTranslation((breakAt - T.shortArm) / 2, 0).setDensity(BEAM_MATERIALS[T.beamMaterial].density * T.beamThickness).setCollisionGroups(groups(G_BEAM, G_GROUND)),
+      this.beam,
+    );
+    this.armLength = breakAt;
+    if (this.sling) { this.world.removeImpulseJoint(this.sling, true); this.sling = null; }
+    this.failure = { kind: 'beam', t: this.t, breakAt };
+    this.result.failure = this.failure;
+    if (!this.released) { this.released = true; this.phase = 'flight'; }
+  }
+
+  private tipFrame() {
+    this.frame.setBodyType(this.R.RigidBodyType.Dynamic, true);
+    this.failure = { kind: 'tip', t: this.t };
+    this.result.failure = this.failure;
   }
 
   private tipWorld(): { x: number; y: number } {
     const b = this.beam.translation();
     const a = this.beam.rotation();
-    const La = this.input.trebuchet.longArm;
+    const La = this.armLength;
     return { x: b.x + La * Math.cos(a), y: b.y + La * Math.sin(a) };
   }
 
@@ -394,7 +508,7 @@ export class ShotSim {
   }
 
   private checkPhase() {
-    if (this.phase === 'swinging' && this.t > DUD_TIME) this.beginSettle();
+    if (this.phase === 'swinging' && (this.t > DUD_TIME || (this.failure && this.t - this.failure.t > 3))) this.beginSettle();
     if (this.phase === 'flight') {
       const p = this.proj.translation();
       const v = this.proj.linvel();
@@ -454,6 +568,9 @@ export class ShotSim {
       integrityBefore: this.result.integrityBefore ?? 1,
       integrityAfter,
       castleAfter,
+      peakStress: this.result.peakStress ?? 0,
+      peakTip: this.result.peakTip ?? 0,
+      failure: this.failure,
       duration: this.t,
       steps: this.steps,
     };
@@ -494,6 +611,9 @@ export class ShotSim {
       wheels: this.wheels.map((w) => this.pose(w)),
       projectile: { x: p.x, y: p.y, angle: this.proj.rotation(), vx: v.x, vy: v.y, released: this.released },
       tip: this.tipWorld(),
+      stress: this.stress,
+      failure: this.failure,
+      piece: this.piece ? { ...this.pose(this.piece), length: this.pieceLength } : undefined,
       blocks,
       wind: { x: this.wind.at(Math.max(p.y, 10), this.t), y: this.wind.vertical(this.t) },
     };
@@ -511,7 +631,7 @@ export class ShotSim {
     const T = this.input.trebuchet;
     return {
       pivotHeight: T.pivotHeight,
-      longArm: T.longArm,
+      longArm: this.armLength,
       shortArm: T.shortArm,
       beamThickness: T.beamThickness,
       cwHalf: this.cwHalf,

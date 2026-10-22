@@ -1,7 +1,7 @@
 import { Graphics } from 'pixi.js';
 import {
   BEAM_MATERIALS, FRAME_MATERIALS, PROJECTILES, BLOCK_MATERIALS, LIMITS,
-  trebuchetCost, castleCost, beamMass, cockedPose, layoutCastle, G,
+  trebuchetCost, castleCost, beamMass, cockedPose, layoutCastle, G, runShot, freshCastleState, DEFAULT_CASTLE,
   type BeamMaterial, type FrameMaterial, type ProjectileKind, type BlockMaterial,
 } from '@siege/sim';
 import type { AppCtx } from '../app';
@@ -37,9 +37,10 @@ export function showBuild(ctx: AppCtx, onBattle: () => void, onMenu: () => void)
     tabButtons.set(t.id, b); tabs.append(b);
   }
   const controls = el('div');
+  const gauges = el('div', 'gauges');
   const costRow = el('div', 'cost');
   const go = button('To battle', 'big primary', () => { save(); onBattle(); });
-  panel.append(tabs, controls, costRow, go);
+  panel.append(tabs, controls, gauges, costRow, go);
   ui.append(panel);
 
   const T = profile.trebuchet, P = profile.projectile, C = profile.castle;
@@ -55,7 +56,24 @@ export function showBuild(ctx: AppCtx, onBattle: () => void, onMenu: () => void)
     const v = Math.sqrt((2 * eff * pe) / (P.mass + beamMass(T) * 0.12));
     return { v, range: (v * v) / G * 0.8 };
   }
+  // Proof-fire the design headlessly to read peak beam stress and frame overturning.
+  let proofTimer: number | undefined;
+  const proofCastle = freshCastleState(DEFAULT_CASTLE, 900);
+  function scheduleProof() {
+    clearTimeout(proofTimer);
+    proofTimer = window.setTimeout(() => {
+      const r = runShot(ctx.R, { trebuchet: T, projectile: P, aim: { releaseAngleDeg: 35 }, wind: { base: 0, gustiness: 0, seed: 1 } }, proofCastle, { stopAtImpact: true });
+      const bar = (label: string, v: number, hint: string) => {
+        const pct = Math.min(100, Math.round(v * 100));
+        const cls = v >= 1 ? 'bad' : v > 0.75 ? 'warn' : 'good';
+        return `<div class="gauge ${cls}"><div class="gl"><span>${label}</span><span>${pct}%${v >= 1 ? ' — ' + hint : ''}</span></div><div class="track"><div class="fill" style="width:${pct}%"></div></div></div>`;
+      };
+      const rangeTxt = r.failure ? (r.failure.kind === 'beam' ? 'Beam snaps mid-swing' : r.failure.kind === 'tip' ? 'Frame tips over' : 'Counterweight strikes the ground') : `Proof shot: ${r.release?.speed.toFixed(0) ?? '–'} m/s, ${r.range.toFixed(0)} m still air`;
+      gauges.innerHTML = bar(`Beam stress (${T.beamMaterial})`, r.peakStress, 'snaps') + (T.wheels ? '' : bar('Frame overturn', r.peakTip, 'tips')) + `<div class="small ${r.failure ? 'bad' : ''}">${rangeTxt}</div>`;
+    }, 120);
+  }
   function refreshCost() {
+    scheduleProof();
     const c = totalCost();
     const over = c > profile.gold;
     const est = estimate();

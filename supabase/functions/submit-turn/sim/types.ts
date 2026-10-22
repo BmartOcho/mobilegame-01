@@ -105,7 +105,21 @@ export interface BlockDestroyedEvent {
   material: BlockMaterial;
 }
 
+export type FailureKind = 'beam' | 'tip' | 'counterweight';
+
+export interface Failure {
+  kind: FailureKind;
+  t: number;
+  /** For a snapped beam: distance from the axle to the break, metres. */
+  breakAt?: number;
+}
+
 export interface ShotResult {
+  /** Peak bending stress in the beam as a fraction of the wood's strength. */
+  peakStress: number;
+  /** Peak overturning moment on a staked frame as a fraction of what it can hold. */
+  peakTip: number;
+  failure?: Failure;
   /** Release time and launch state (undefined if the sling never released). */
   release?: { t: number; x: number; y: number; vx: number; vy: number; speed: number; angleDeg: number };
   /** Where the projectile first touched something. */
@@ -140,6 +154,11 @@ export interface RenderState {
   projectile: BodyPose & { vx: number; vy: number; released: boolean };
   /** Tip of the long arm in world coords (sling anchor). */
   tip: { x: number; y: number };
+  /** Current beam bending stress as a fraction of the wood's strength. */
+  stress: number;
+  failure?: Failure;
+  /** Flying outer arm after a beam snap. */
+  piece?: BodyPose & { length: number };
   blocks: { id: number; x: number; y: number; angle: number; hp: number; w: number; h: number; material: BlockMaterial }[];
   wind: { x: number; y: number };
 }
