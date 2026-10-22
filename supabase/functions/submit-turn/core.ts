@@ -4,7 +4,7 @@ import {
   initPhysics, runShot, freshCastleState, computeIntegrity, layoutCastle, aiAim, matchWind, matchOutcome, eloDelta,
   sanitizeTrebuchet, sanitizeProjectile, hashString, MAX_ROUNDS, LOSE_AT,
   type AimInput, type CastleConfig, type CastleState, type ProjectileConfig, type TrebuchetConfig, type ShotResult, type Rapier,
-} from '../_shared/sim/index.ts';
+} from './sim/index.ts';
 
 export interface Kit { name: string; rating: number; trebuchet: TrebuchetConfig; projectile: ProjectileConfig; castle: CastleConfig }
 export interface ProfileRow extends Kit { id: string; games: number; wins: number }

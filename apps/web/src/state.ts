@@ -20,14 +20,17 @@ export interface Profile {
 const KEY = 'siegeworks.profile.v1';
 
 function uid(): string {
-  return Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID();
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => { const r = (Math.random() * 16) | 0; return (c === 'x' ? r : (r & 3) | 8).toString(16); });
 }
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function loadProfile(): Profile {
   try {
     const raw = localStorage.getItem(KEY);
     if (raw) {
       const p = JSON.parse(raw) as Profile;
+      if (!UUID.test(p.id)) p.id = uid();
       return { ...defaultProfile(), ...p, trebuchet: { ...DEFAULT_TREBUCHET, ...p.trebuchet }, castle: { ...DEFAULT_CASTLE, ...p.castle } };
     }
   } catch { /* ignore */ }

@@ -9,5 +9,5 @@
     "skipLibCheck": true,
     "types": []
   },
-  "include": ["_shared", "submit-turn/core.ts", "submit-turn/core.test.ts"]
+  "include": ["submit-turn/sim", "submit-turn/core.ts", "submit-turn/core.test.ts"]
 }

@@ -16,36 +16,34 @@ interface ServerFinished { winner: string | null; attackerDelta: number; attacke
 class Net {
   enabled = !!(url && anon);
   private client: any = null;
-  userId: string | null = null;
+  deviceId = '';
 
   private async sb() {
     if (!this.enabled) return null;
     if (!this.client) {
       const { createClient } = await import('@supabase/supabase-js');
-      this.client = createClient(url!, anon!, { auth: { persistSession: true } });
-      let { data } = await this.client.auth.getSession();
-      if (!data.session) { await this.client.auth.signInAnonymously(); ({ data } = await this.client.auth.getSession()); }
-      this.userId = data.session?.user?.id ?? null;
+      this.client = createClient(url!, anon!, { auth: { persistSession: false } });
     }
     return this.client;
   }
 
   private async call(body: Record<string, unknown>): Promise<any> {
     const sb = await this.sb(); if (!sb) throw new Error('offline');
-    const { data, error } = await sb.functions.invoke('submit-turn', { body });
+    const { data, error } = await sb.functions.invoke('submit-turn', { body: { deviceId: this.deviceId, ...body } });
     if (error) throw new Error(error.message ?? String(error));
     if (data?.error) throw new Error(data.error);
     return data;
   }
 
   async syncProfile(p: Profile) {
+    this.deviceId = p.id;
     const data = await this.call({ action: 'profile', kit: { name: p.name, trebuchet: p.trebuchet, projectile: p.projectile, castle: p.castle } });
     if (data?.profile) { p.rating = data.profile.rating; p.games = data.profile.games; p.wins = data.profile.wins; }
   }
 
   async leaderboard(): Promise<LeaderRow[]> {
     const sb = await this.sb(); if (!sb) return [];
-    const { data } = await sb.from('leaderboard').select('name,rating').limit(10);
+    const { data } = await sb.from('siege_leaderboard').select('name,rating').limit(10);
     return (data ?? []) as LeaderRow[];
   }
 
@@ -55,6 +53,7 @@ class Net {
    * same seeded AI the client runs, and re-simulates every shot itself.
    */
   async findOpponent(p: Profile): Promise<{ opponent: Opponent; seed: string } | null> {
+    this.deviceId = p.id;
     await this.syncProfile(p);
     const data = await this.call({ action: 'matchmake' });
     if (!data?.opponent) return null;

@@ -1,6 +1,6 @@
 // Node test of the match server logic with an in-memory database.
 import { handle, type Db, type ProfileRow, type MatchRow, type TurnRow } from './core.ts';
-import { DEFAULT_TREBUCHET, DEFAULT_PROJECTILE, DEFAULT_CASTLE, MAX_ROUNDS } from '../_shared/sim/index.ts';
+import { DEFAULT_TREBUCHET, DEFAULT_PROJECTILE, DEFAULT_CASTLE, MAX_ROUNDS } from './sim/index.ts';
 
 const profiles = new Map<string, ProfileRow>();
 const matches = new Map<string, MatchRow>();
