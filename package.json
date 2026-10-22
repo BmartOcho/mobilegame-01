@@ -1,0 +1,12 @@
+{
+  "name": "siegeworks",
+  "private": true,
+  "version": "0.1.0",
+  
+  "scripts": {
+    "dev": "pnpm --filter @siege/web dev",
+    "build": "pnpm -r build",
+    "test": "pnpm --filter @siege/sim test",
+    "typecheck": "pnpm -r typecheck"
+  }
+}

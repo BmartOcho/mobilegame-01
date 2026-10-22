@@ -1,0 +1,7 @@
+node_modules
+dist
+.supabase
+*.log
+.DS_Store
+apps/web/ios
+apps/web/android
