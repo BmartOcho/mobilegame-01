@@ -31,7 +31,9 @@ Everything in SI units at 120 Hz fixed step. One `ShotSim` = one shot, from cock
 2. Battle, up to 4 rounds. Each round: shared wind; you aim (release pin, cocking angle) and loose; the shot plays with slow-motion on release, impact and shatter; then the opponent's shot plays mirrored.
 3. Castle at ≤ 40 % loses immediately; otherwise higher integrity after 4 rounds wins. Elo (K tapering 48→24) and plunder gold.
 
-Offline the opponent is an AI lord whose kit scales with your rating. Online (`VITE_SUPABASE_*` set) matchmaking picks a real player's kit within ±250 rating; the edge function `submit-turn` owns the match state, re-simulates each shot, settles ratings for both players and refuses out-of-order or foreign requests.
+Offline the opponent is an AI lord whose kit scales with your rating. Online (`VITE_SUPABASE_*` set) matchmaking picks a real player's kit within ±250 rating; the edge function `submit-turn` owns the match state, re-simulates each shot, settles ratings for both players and refuses out-of-order or foreign requests. Verified live: two browser identities on the deployed function, the second matched against the first's freshly stored castle, ratings and leaderboard updated server-side.
+
+Identity today is a client-generated device UUID (anonymous sign-in is a dashboard toggle on the host project). Good enough for a ladder where every outcome is computed server-side; a spoofed id can only play someone else's matches for them, so the next step is anonymous auth with the uid as profile id.
 
 ## Repo layout
 
