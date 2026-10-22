@@ -1,5 +1,5 @@
 import { Application, Graphics } from 'pixi.js';
-import { initPhysics, rankName } from '@siege/sim';
+import { initPhysics, rankName, trebuchetCost, castleCost, PROJECTILES } from '@siege/sim';
 import type { AppCtx } from './app';
 import { showBuild } from './screens/build';
 import { showBattle } from './screens/battle';
@@ -26,7 +26,17 @@ async function boot() {
     build: () => showBuild(ctx, () => startBattle(false), toMenu),
   });
 
+  function kitCost() {
+    return trebuchetCost(profile.trebuchet) + castleCost(profile.castle) + PROJECTILES[profile.projectile.kind].cost + Math.round(profile.projectile.mass * 2);
+  }
+
   async function startBattle(ranked: boolean) {
+    // The treasury gate lives here as well as on the workshop button, so no path into a match skips it.
+    if (kitCost() > profile.gold) {
+      alert(`Your kit costs ${Math.round(kitCost())} g but the treasury holds ${Math.round(profile.gold)} g. Trim the design in the workshop first.`);
+      showBuild(ctx, () => startBattle(false), toMenu);
+      return;
+    }
     let seed = `${profile.id}:${Date.now()}`;
     let opponent = makeAiOpponent(R, profile.rating, seed);
     if (ranked) {
