@@ -2,6 +2,7 @@ import type { BeamMaterial, BlockMaterial, FrameMaterial, ProjectileKind, Trebuc
 
 export const G = 9.81;
 export const AIR_DENSITY = 1.225; // kg/m^3 at sea level
+export const AIR_VISCOSITY = 1.81e-5; // Pa.s at 15 C
 
 export interface WoodProps {
   density: number; // kg/m^3
@@ -25,8 +26,10 @@ export const FRAME_MATERIALS: Record<FrameMaterial, WoodProps> = {
 
 export interface ProjectileProps {
   density: number; // kg/m^3 -> radius from mass
-  /** Drag coefficient (subcritical sphere ~0.47, rough stone higher). */
+  /** Subcritical drag coefficient (smooth sphere ~0.47, rough stone higher). */
   cd: number;
+  /** Surface finish: smooth spheres show the drag crisis (Cd collapses above Re~3e5); rough ones transition early and mildly. */
+  smooth: boolean;
   /** Fraction of impact energy delivered as damage (rest lost to deformation). */
   hardness: number;
   /** Bonus damage multiplier against timber. */
@@ -38,10 +41,10 @@ export interface ProjectileProps {
 }
 
 export const PROJECTILES: Record<ProjectileKind, ProjectileProps> = {
-  stone: { density: 2500, cd: 0.55, hardness: 0.8, vsTimber: 1, minMass: 10, maxMass: 120, cost: 0, label: 'Quarried stone' },
-  iron: { density: 7200, cd: 0.47, hardness: 1.0, vsTimber: 1, minMass: 10, maxMass: 90, cost: 250, label: 'Iron shot' },
-  firepot: { density: 1400, cd: 0.7, hardness: 0.3, vsTimber: 3.5, minMass: 8, maxMass: 40, cost: 150, label: 'Clay firepot' },
-  lead: { density: 11300, cd: 0.45, hardness: 0.9, vsTimber: 1, minMass: 10, maxMass: 70, cost: 450, label: 'Lead ball' },
+  stone: { density: 2500, cd: 0.55, smooth: false, hardness: 0.8, vsTimber: 1, minMass: 10, maxMass: 120, cost: 0, label: 'Quarried stone' },
+  iron: { density: 7200, cd: 0.47, smooth: true, hardness: 1.0, vsTimber: 1, minMass: 10, maxMass: 90, cost: 250, label: 'Iron shot' },
+  firepot: { density: 1400, cd: 0.7, smooth: false, hardness: 0.3, vsTimber: 3.5, minMass: 8, maxMass: 40, cost: 150, label: 'Clay firepot' },
+  lead: { density: 11300, cd: 0.45, smooth: true, hardness: 0.9, vsTimber: 1, minMass: 10, maxMass: 70, cost: 450, label: 'Lead ball' },
 };
 
 export interface BlockProps {

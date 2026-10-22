@@ -40,7 +40,8 @@ for (let r = 1; r <= MAX_ROUNDS && !finished; r++) {
 }
 console.log('match wall ms', Math.round(performance.now() - t0), 'per round', Math.round((performance.now() - t0) / Math.max(1, rounds)));
 check('match finished with rating deltas', !!finished && typeof finished.attackerDelta === 'number', JSON.stringify(finished));
-check('ratings moved', profiles.get('alice')!.rating !== 1000 || profiles.get('bob')!.rating !== 1000, `${profiles.get('alice')!.rating} / ${profiles.get('bob')!.rating}`);
+check('ratings consistent with deltas', profiles.get('alice')!.rating === 1000 + finished.attackerDelta && profiles.get('bob')!.rating === 1000 + finished.defenderDelta && finished.attackerDelta === -finished.defenderDelta, `${profiles.get('alice')!.rating} / ${profiles.get('bob')!.rating}`);
+check('both players got a game recorded', profiles.get('alice')!.games === 1 && profiles.get('bob')!.games === 1);
 check('turns recorded', turns.length >= 2, String(turns.length));
 let threw = false;
 try { await handle('alice', { action: 'player-shot', matchId: mm.matchId, aim: { releaseAngleDeg: 26 } }, db); } catch { threw = true; }

@@ -237,7 +237,14 @@ export function showBattle(ctx: AppCtx, opp: Opponent, opts: BattleOptions, onEn
           const rel = sim.finalResult().release!;
           if (status) status.textContent = `Released at ${rel.speed.toFixed(0)} m/s, ${rel.angleDeg.toFixed(0)}° — in flight`;
         }
-        if (sim.released) trace.push([st.projectile.x, st.projectile.y]);
+        if (sim.released) {
+          trace.push([st.projectile.x, st.projectile.y]);
+          // Firepots burn in flight: flame close to the pot, smoke trailing behind.
+          if (input.projectile.kind === 'firepot' && !impactSeen && sim.steps % 3 === 0) {
+            particles.dust(st.projectile.x, st.projectile.y, 1, 0xff9a3c, 0.35);
+            if (sim.steps % 6 === 0) particles.dust(st.projectile.x - st.projectile.vx * 0.03, st.projectile.y - st.projectile.vy * 0.03, 1, 0x55504c, 0.5);
+          }
+        }
         const res = sim.finalResult();
         if (res.destroyed.length > lastDestroyed) {
           for (const d of res.destroyed.slice(lastDestroyed)) { particles.burst(d.x, d.y, d.vx, d.vy, PALETTE[d.material], 26, 6, 0.22); particles.dust(d.x, d.y, 10, 0xd8d0c0, 0.6); }
@@ -249,6 +256,7 @@ export function showBattle(ctx: AppCtx, opp: Opponent, opts: BattleOptions, onEn
           if (status) status.textContent = res.impact.target === 'castle' ? `Impact on the walls at ${res.impact.speed.toFixed(0)} m/s!` : `Short — hit the ground at ${res.impact.x.toFixed(0)} m`;
           particles.burst(res.impact.x, res.impact.y, 0, 0, res.impact.target === 'ground' ? PALETTE.dirt : 0xd8d0c0, 40, 7, 0.18);
           particles.dust(res.impact.x, res.impact.y, 28, res.impact.target === 'ground' ? 0xb9a37f : 0xd8d0c0, 1.0);
+          if (input.projectile.kind === 'firepot') { particles.burst(res.impact.x, res.impact.y, 0, 0, 0xff7a1f, 40, 5, 0.25); particles.dust(res.impact.x, res.impact.y + 0.5, 30, 0xff9a3c, 0.9); particles.dust(res.impact.x, res.impact.y + 1, 20, 0x3a3634, 1.2); }
           slowUntil = sim.t + 0.5;
         }
       }
