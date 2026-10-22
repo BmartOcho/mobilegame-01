@@ -33,8 +33,9 @@ function best(input: Omit<ShotInput, 'aim'>) {
 
 // 1. Efficiency: stock machine is deliberately unoptimised; a tuned one must reach the published band.
 const stock = best({ trebuchet: DEFAULT_TREBUCHET, projectile: DEFAULT_PROJECTILE, wind: still });
-const tuned = best({ trebuchet: { ...DEFAULT_TREBUCHET, beamThickness: 0.18, shortArm: 1.8, hangerLength: 1.4, slingLength: 5.5 }, projectile: DEFAULT_PROJECTILE, wind: still });
-const fixedCw = best({ trebuchet: { ...DEFAULT_TREBUCHET, beamThickness: 0.18, shortArm: 1.8, hangerLength: 0, slingLength: 5.5 }, projectile: DEFAULT_PROJECTILE, wind: still });
+// Tuned: light beam, long short-arm, 1.5 t counterweight (an 18 cm pine beam snaps above that).
+const tuned = best({ trebuchet: { ...DEFAULT_TREBUCHET, counterweightMass: 1500, beamThickness: 0.18, shortArm: 1.8, hangerLength: 1.4, slingLength: 5.5 }, projectile: DEFAULT_PROJECTILE, wind: still });
+const fixedCw = best({ trebuchet: { ...DEFAULT_TREBUCHET, counterweightMass: 1500, beamThickness: 0.18, shortArm: 1.8, hangerLength: 0, slingLength: 5.5 }, projectile: DEFAULT_PROJECTILE, wind: still });
 console.log(`stock: ${stock.speed.toFixed(1)} m/s, ${stock.range.toFixed(0)} m, eff ${(stock.eff * 100).toFixed(0)}% | tuned: ${tuned.speed.toFixed(1)} m/s, ${tuned.range.toFixed(0)} m, eff ${(tuned.eff * 100).toFixed(0)}% | fixed CW: eff ${(fixedCw.eff * 100).toFixed(0)}%`);
 check('stock machine efficiency 30-50% (room to upgrade)', stock.eff > 0.3 && stock.eff < 0.5, `${(stock.eff * 100).toFixed(0)}%`);
 check('tuned hinged machine reaches 55-80% (Horsdal: 69-75% measured, 80% ideal)', tuned.eff > 0.55 && tuned.eff < 0.8, `${(tuned.eff * 100).toFixed(0)}%`);
@@ -46,6 +47,12 @@ const u = best({ trebuchet: ursa, projectile: { kind: 'stone', mass: 13 }, wind:
 console.log(`Ursa-class 13 kg: ${u.speed.toFixed(1)} m/s, ${u.range.toFixed(0)} m (recorded 228 m)`);
 check('Ursa-class range within 20% of the recorded 228 m', Math.abs(u.range - 228) / 228 < 0.2, `${u.range.toFixed(0)} m`);
 check('stock medium machine 25 kg range 90-160 m', stock.range > 90 && stock.range < 160, `${stock.range.toFixed(0)} m`);
+
+// 2b. Horsdal's full-scale estimate: 10 m arm, 7232 kg counterweight, 96 kg stone -> 286 m with drag and friction.
+const hz: TrebuchetConfig = { pivotHeight: 9, longArm: 10, shortArm: 2.5, beamMaterial: 'oak', beamThickness: 0.32, frameMaterial: 'oak', counterweightMass: 7232, hangerLength: 2.2, slingLength: 9, wheels: false };
+const h = best({ trebuchet: hz, projectile: { kind: 'stone', mass: 96 }, wind: still });
+console.log(`Horsdal full-scale 96 kg: ${h.speed.toFixed(1)} m/s, ${h.range.toFixed(0)} m (paper: 286 m)`);
+check('Horsdal full-scale range within 25% of the paper\'s 286 m', Math.abs(h.range - 286) / 286 < 0.25, `${h.range.toFixed(0)} m`);
 
 // 3. Aerodynamics
 const r = runShot(R, { trebuchet: DEFAULT_TREBUCHET, projectile: DEFAULT_PROJECTILE, aim: { releaseAngleDeg: stock.angle }, wind: still }, far, { stopAtImpact: true });

@@ -75,7 +75,7 @@ export const DEFAULT_TREBUCHET: TrebuchetConfig = {
   beamMaterial: 'pine',
   beamThickness: 0.28,
   frameMaterial: 'pine',
-  counterweightMass: 1500,
+  counterweightMass: 1700,
   hangerLength: 1.4,
   slingLength: 5.5,
   wheels: false,

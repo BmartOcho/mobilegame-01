@@ -26,6 +26,7 @@ const G_GROUND = 1, G_FRAME = 2, G_BEAM = 4, G_CW = 8, G_PROJ = 16, G_CASTLE = 3
 const groups = (member: number, filter: number) => ((member << 16) | filter) >>> 0;
 
 const COUNTERWEIGHT_DENSITY = 2200; // rubble + lead box
+const AXLE_MU = 0.12; // greased wood/iron journal bearing
 
 interface Vel { vx: number; vy: number }
 
@@ -71,6 +72,7 @@ export class ShotSim {
   private pieceLength = 0;
   private prevCwVel: Vel = { vx: 0, vy: 0 };
   private lastTip = { x: 0, y: 0 };
+  private lastCw = { x: 0, y: 0 };
   private stress = 0;
   private stressOver = 0;
   private tipOver = 0;
@@ -266,6 +268,14 @@ export class ShotSim {
     const T = this.input.trebuchet;
     this.beam.resetTorques(false);
     this.beam.addTorque(beamDragTorque(T.beamThickness, T.longArm, T.shortArm, this.beam.angvel()), true);
+    // Axle bearing friction: a greased iron-on-wood journal, tau = mu * r_axle * |axle load|
+    // (Horsdal 2025 names bearings and hinges as the main mechanical loss).
+    const w = this.beam.angvel();
+    if (Math.abs(w) > 1e-3) {
+      const load = Math.hypot(this.lastTip.x + this.lastCw.x, this.lastTip.y + this.lastCw.y) + this.beam.mass() * 9.81;
+      const rAxle = Math.max(0.06, T.beamThickness * 0.45);
+      this.beam.addTorque(-Math.sign(w) * AXLE_MU * rAxle * load, true);
+    }
 
     const cwv = this.cw.linvel();
     this.prevCwVel = { vx: cwv.x, vy: cwv.y };
@@ -317,6 +327,7 @@ export class ShotSim {
     const cv = this.cw.linvel();
     const cax = (cv.x - this.prevCwVel.vx) / DT, cay = (cv.y - this.prevCwVel.vy) / DT + g;
     const fcx = T.counterweightMass * cax, fcy = T.counterweightMass * cay;
+    this.lastCw = { x: fcx, y: fcy };
     const mCw = Math.abs(fcx * uy - fcy * ux) * T.shortArm;
     const sigma = (6 * Math.max(mTip, mCw)) / (t * t * t);
     const ratio = sigma / (BEAM_MATERIALS[T.beamMaterial].strengthMPa * 1e6);
