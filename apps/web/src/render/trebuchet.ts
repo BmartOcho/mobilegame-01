@@ -202,3 +202,13 @@ export function drawBlocks(g: Graphics, cam: Camera, blocks: RenderState['blocks
     }
   }
 }
+
+/** The outer arm after a snap: a tapered splintered stub flying on its own. */
+export function drawBeamPiece(g: Graphics, cam: Camera, piece: { x: number; y: number; angle: number; length: number }, material: TrebuchetConfig['beamMaterial'], t: number) {
+  const col = PALETTE[material];
+  const L = piece.length;
+  polyLocal(g, cam, piece.x, piece.y, piece.angle, [[-L / 2, -t * 0.45], [-L / 2 + 0.25, -t * 0.2], [-L / 2 + 0.1, t * 0.1], [-L / 2 + 0.3, t * 0.45], [L / 2, t * 0.28], [L / 2, -t * 0.28]], col, { color: shade(col, 0.5) });
+  const [fx, fy] = rot(L / 2, 0, piece.angle);
+  const [gx, gy] = rot(0.45, t * 0.9, piece.angle);
+  line(g, cam, piece.x + fx, piece.y + fy, piece.x + fx + gx, piece.y + fy + gy, PALETTE.iron_dark, 3);
+}

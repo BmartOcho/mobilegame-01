@@ -8,7 +8,7 @@ import { profile } from '../state';
 import { el, slider, button } from '../ui';
 import { Camera } from '../render/camera';
 import { drawBackdrop, Particles } from '../render/scene';
-import { drawTrebuchet, drawBlocks, poseFromRender, poseAtBeamAngle, type TrebGeo, type TrebPose } from '../render/trebuchet';
+import { drawTrebuchet, drawBlocks, drawBeamPiece, poseFromRender, poseAtBeamAngle, type TrebGeo, type TrebPose } from '../render/trebuchet';
 import { PALETTE } from '../render/draw';
 import type { Opponent, MatchSummary } from '../opponent';
 
@@ -76,6 +76,7 @@ export function showBattle(ctx: AppCtx, opp: Opponent, opts: BattleOptions, onEn
   let slowUntil = 0;
   let lastDestroyed = 0;
   let impactSeen = false;
+  let failureSeen = false;
   let trace: number[][] = [];
   let lastTraceMine: number[][] = [];
   let lastTraceTheirs: number[][] = [];
@@ -117,6 +118,7 @@ export function showBattle(ctx: AppCtx, opp: Opponent, opts: BattleOptions, onEn
   }
 
   function makeSim(input: ShotInput, castle: CastleState) {
+    failureSeen = false;
     sim?.free();
     sim = createShot(R, input, castle);
     const gg = sim.geometry();
@@ -234,8 +236,9 @@ export function showBattle(ctx: AppCtx, opp: Opponent, opts: BattleOptions, onEn
         frameState = st;
         if (!wasReleased && sim.released) {
           slowUntil = sim.t + 0.45;
-          const rel = sim.finalResult().release!;
-          if (status) status.textContent = `Released at ${rel.speed.toFixed(0)} m/s, ${rel.angleDeg.toFixed(0)}° — in flight`;
+          const fr = sim.finalResult();
+          const rel = fr.release;
+          if (rel && status) status.textContent = `Released at ${rel.speed.toFixed(0)} m/s, ${rel.angleDeg.toFixed(0)}° — beam peaked at ${(fr.peakStress * 100).toFixed(0)}% of its strength`;
         }
         if (sim.released) {
           trace.push([st.projectile.x, st.projectile.y]);
@@ -250,6 +253,19 @@ export function showBattle(ctx: AppCtx, opp: Opponent, opts: BattleOptions, onEn
           for (const d of res.destroyed.slice(lastDestroyed)) { particles.burst(d.x, d.y, d.vx, d.vy, PALETTE[d.material], 26, 6, 0.22); particles.dust(d.x, d.y, 10, 0xd8d0c0, 0.6); }
           lastDestroyed = res.destroyed.length;
           slowUntil = Math.max(slowUntil, sim.t + 0.25);
+        }
+        if (st.failure && !failureSeen) {
+          failureSeen = true;
+          slowUntil = sim.t + 0.9;
+          const who = shooterIsMe ? 'Your' : `${opp.name}'s`;
+          if (st.failure.kind === 'beam') {
+            if (status) status.textContent = `${who} beam snapped under the load!`;
+            particles.burst(st.tip.x, st.tip.y, 0, 0, PALETTE[input.trebuchet.beamMaterial], 36, 9, 0.16);
+          } else if (st.failure.kind === 'tip') {
+            if (status) status.textContent = `${who} frame tore its stakes and tipped over!`;
+            particles.dust(st.frame.x, 0.3, 24, 0xb9a37f, 0.9);
+          }
+          setToast(st.failure.kind === 'beam' ? 'Beam snapped! Thicker timber or a lighter stone next time.' : 'Frame tipped! A wider, heavier frame or wheels would hold.', 3600);
         }
         if (res.impact && !impactSeen) {
           impactSeen = true;
@@ -299,7 +315,9 @@ export function showBattle(ctx: AppCtx, opp: Opponent, opts: BattleOptions, onEn
     }
     if (trace.length > 1) for (let i = 0; i < trace.length; i += 2) g.circle(cam.sx(trace[i][0]), cam.sy(trace[i][1]), 1.3).fill({ color: 0xffffff, alpha: 0.5 });
     drawBlocks(g, cam, st.blocks, kinds, time);
+    if (st.failure?.kind === 'beam' && st.failure.breakAt !== undefined) geo = { ...geo, longArm: st.failure.breakAt };
     drawTrebuchet(g, cam, geo, setup ? setupPose(st) : poseFromRender(st), input.trebuchet, input.projectile);
+    if (st.piece) drawBeamPiece(g, cam, st.piece, input.trebuchet.beamMaterial, geo.beamThickness);
     particles.draw(g, cam);
     // Wind sock near the shooter
     const sockX = fx(-6), sockY = geo.pivotHeight + 3;

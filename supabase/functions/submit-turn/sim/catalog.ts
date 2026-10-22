@@ -6,10 +6,13 @@ export const AIR_VISCOSITY = 1.81e-5; // Pa.s at 15 C
 
 export interface WoodProps {
   density: number; // kg/m^3
-  /** Allowable bending stress, MPa. Beam snaps above this (future). */
+  /** Bending strength (modulus of rupture), MPa. The beam snaps above this. */
   strengthMPa: number;
   cost: number;
 }
+
+/** Overturning moment a staked frame can resist before the stakes pull, N.m. */
+export const STAKE_CAPACITY: Record<FrameMaterial, number> = { pine: 60000, oak: 90000, ironbound: 150000 };
 
 export const BEAM_MATERIALS: Record<BeamMaterial, WoodProps> = {
   pine: { density: 500, strengthMPa: 40, cost: 0 },

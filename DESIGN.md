@@ -25,6 +25,18 @@ Everything in SI units at 120 Hz fixed step. One `ShotSim` = one shot, from cock
 
 **Determinism** — the deterministic Rapier build, integer-only PRNG, and stored block poses mean `runShot(input, castle)` gives bit-identical results in the browser and in the Deno edge function (tested).
 
+**Structural failure** — the beam's bending moment at the axle is estimated every step from the rope tension (projectile acceleration minus gravity and drag, times the sling's perpendicular component and the arm) and from the counterweight pull on the short arm; σ = 6M/t³ for the square section against the wood's modulus of rupture (pine 40 MPa, oak 60, ash 70, ironbound 110). Sustained overload snaps the beam: the outer arm flies off as its own body, the sling lets go, the stump keeps swinging. A staked frame tips when the horizontal axle pull times the axle height exceeds what the frame's weight, the counterweight's downward pull and the stakes can hold; the frame then becomes a dynamic body and topples with the beam attached. Wheeled frames are always simulated bodies. The workshop shows both margins as gauges before you commit a design.
+
+## Decisions taken with the owner (2026-10-22)
+
+| Question | Decision |
+|---|---|
+| Hosting | Repo goes public; GitHub Pages serves the `gh-pages` branch the workflow publishes. |
+| Online model | Ghost-defended async ranked for launch; live duels later on the same tables. |
+| Match length | 4 rounds each, castle falls at 40 % integrity, otherwise higher integrity wins. |
+| Failures | Yes: beams snap, staked frames tip, counterweights can strike the ground. |
+| Ladder home | Stays in the Printssistant-staging Supabase project while playtesting. |
+
 ## Match flow
 
 1. Workshop: tune machine (four views) and castle within the treasury.

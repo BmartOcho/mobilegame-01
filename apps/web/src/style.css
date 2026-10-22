@@ -81,3 +81,13 @@ button:disabled { opacity: 0.45; }
 .lb { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 8px; }
 .lb td { padding: 4px 6px; border-bottom: 1px solid rgba(255,255,255,0.06); }
 .lb td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+
+.gauges { margin: 6px 0; }
+.gauge { margin: 4px 0; font-size: 12px; }
+.gauge .gl { display: flex; justify-content: space-between; color: var(--muted); }
+.gauge .track { height: 6px; background: rgba(255,255,255,0.12); border-radius: 3px; overflow: hidden; margin-top: 3px; }
+.gauge .fill { height: 100%; background: var(--good); transition: width 0.3s; }
+.gauge.warn .fill { background: var(--accent); }
+.gauge.bad .fill { background: var(--bad); }
+.gauge.bad .gl span:last-child { color: var(--bad); font-weight: 700; }
+.small.bad { color: var(--bad); font-weight: 700; }
