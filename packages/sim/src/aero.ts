@@ -1,4 +1,4 @@
-import { AIR_DENSITY } from './catalog';
+import { AIR_DENSITY } from './catalog.ts';
 
 export interface AeroBody {
   radius: number;

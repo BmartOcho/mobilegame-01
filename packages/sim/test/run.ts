@@ -1,4 +1,4 @@
-import { initPhysics, runShot, freshCastleState, DEFAULT_TREBUCHET, DEFAULT_PROJECTILE, DEFAULT_CASTLE, type ShotInput } from '../src/index';
+import { initPhysics, runShot, freshCastleState, DEFAULT_TREBUCHET, DEFAULT_PROJECTILE, DEFAULT_CASTLE, type ShotInput } from '../src/index.ts';
 
 const R = await initPhysics();
 

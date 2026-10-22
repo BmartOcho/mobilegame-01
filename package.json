@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "pnpm --filter @siege/web dev",
     "build": "pnpm -r build",
-    "test": "pnpm --filter @siege/sim test",
+    "test": "pnpm --filter @siege/sim test && pnpm --filter @siege/functions test",
+    "sync-sim": "bash scripts/sync-sim.sh",
     "typecheck": "pnpm -r typecheck"
   }
 }

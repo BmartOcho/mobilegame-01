@@ -1,4 +1,4 @@
-import type { BeamMaterial, BlockMaterial, FrameMaterial, ProjectileKind, TrebuchetConfig, ProjectileConfig, CastleConfig } from './types';
+import type { BeamMaterial, BlockMaterial, FrameMaterial, ProjectileKind, TrebuchetConfig, ProjectileConfig, CastleConfig } from './types.ts';
 
 export const G = 9.81;
 export const AIR_DENSITY = 1.225; // kg/m^3 at sea level
@@ -54,9 +54,9 @@ export interface BlockProps {
 }
 
 export const BLOCK_MATERIALS: Record<BlockMaterial, BlockProps> = {
-  timber: { density: 600, toughness: 9000, friction: 0.6, cost: 0, label: 'Timber palisade' },
-  limestone: { density: 2300, toughness: 24000, friction: 0.75, cost: 300, label: 'Limestone' },
-  granite: { density: 2700, toughness: 50000, friction: 0.8, cost: 700, label: 'Granite' },
+  timber: { density: 600, toughness: 5000, friction: 0.5, cost: 0, label: 'Timber palisade' },
+  limestone: { density: 2300, toughness: 14000, friction: 0.55, cost: 300, label: 'Limestone' },
+  granite: { density: 2700, toughness: 28000, friction: 0.6, cost: 700, label: 'Granite' },
 };
 
 /** Shooter axle sits at x=0. Castle front face is here. */

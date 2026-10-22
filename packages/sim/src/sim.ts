@@ -1,10 +1,10 @@
 import RAPIER from '@dimforge/rapier2d-deterministic-compat';
 import type { RigidBody, Collider, World, EventQueue, ImpulseJoint } from '@dimforge/rapier2d-deterministic-compat';
-import type { ShotInput, ShotResult, CastleState, RenderState, BlockDestroyedEvent, BlockState, BodyPose } from './types';
-import { BEAM_MATERIALS, BLOCK_MATERIALS, PROJECTILES, projectileRadius, frameMass, sanitizeTrebuchet, sanitizeProjectile, clamp, LIMITS } from './catalog';
-import { layoutCastle, computeIntegrity, BLOCK_DEPTH, type BlockDef, type CastleLayout } from './castle';
-import { WindField } from './wind';
-import { aeroForce } from './aero';
+import type { ShotInput, ShotResult, CastleState, RenderState, BlockDestroyedEvent, BlockState, BodyPose } from './types.ts';
+import { BEAM_MATERIALS, BLOCK_MATERIALS, PROJECTILES, projectileRadius, frameMass, sanitizeTrebuchet, sanitizeProjectile, clamp, LIMITS } from './catalog.ts';
+import { layoutCastle, computeIntegrity, BLOCK_DEPTH, type BlockDef, type CastleLayout } from './castle.ts';
+import { WindField } from './wind.ts';
+import { aeroForce } from './aero.ts';
 
 export type Rapier = typeof RAPIER;
 
@@ -65,6 +65,8 @@ export class ShotSim {
   private rotated = 0;
 
   private result: Partial<ShotResult> = { damage: 0, destroyed: [] };
+  /** Stop as soon as the projectile touches anything (AI aiming / previews). */
+  stopAtImpact = false;
 
   constructor(private R: Rapier, input: ShotInput, castle: CastleState) {
     this.input = {
@@ -79,7 +81,7 @@ export class ShotSim {
 
     this.world = new R.World({ x: 0, y: -9.81 });
     this.world.timestep = DT;
-    this.world.integrationParameters.numSolverIterations = 8;
+    this.world.integrationParameters.numSolverIterations = 4;
     this.eq = new R.EventQueue(true);
 
     this.projRadius = projectileRadius(this.input.projectile);
@@ -342,6 +344,20 @@ export class ShotSim {
         if (hp <= 0 && !toDestroy.includes(id)) toDestroy.push(id);
       };
 
+      // Shock through the masonry: a projectile hit also cracks nearby blocks.
+      if ((isProj1 || isProj2) && energy > 2000) {
+        const hitId = id1 ?? id2;
+        const hb = hitId !== undefined ? this.blockBodies.get(hitId) : undefined;
+        if (hb) {
+          const hp = hb.translation();
+          for (const [nid, nb] of this.blockBodies) {
+            if (nid === hitId) continue;
+            const np = nb.translation();
+            const d = Math.hypot(np.x - hp.x, np.y - hp.y);
+            if (d < 1.7) apply(nid, true, 0.22 * (1 - d / 1.7));
+          }
+        }
+      }
       if (id1 !== undefined && id2 !== undefined) {
         // split by inverse toughness
         const t1 = BLOCK_MATERIALS[this.blockDef.get(id1)!.material].toughness;
@@ -380,6 +396,7 @@ export class ShotSim {
       const castleEnd = this.layout.blocks.length ? this.input && this.layout.width + (this.layout.blocks[0] ? this.layout.blocks[0].x : 0) : 200;
       const lost = p.y < -3 || p.x > castleEnd + 80 || p.x < -80;
       const resting = this.result.impact && Math.hypot(v.x, v.y) < 0.6 && this.t - this.result.impact.t > 0.5;
+      if (this.stopAtImpact && (lost || this.result.impact)) { this.finish(); return; }
       if (lost || resting || (this.result.impact && this.t - this.result.impact.t > 1.0)) this.beginSettle();
     }
     if (this.phase === 'settle') {
@@ -477,6 +494,13 @@ export class ShotSim {
     };
   }
 
+  /** Block kind lookup for the renderer. */
+  blockKinds(): Map<number, BlockDef['kind']> {
+    const m = new Map<number, BlockDef['kind']>();
+    for (const b of this.layout.blocks) m.set(b.id, b.kind);
+    return m;
+  }
+
   /** Static geometry the renderer needs once. */
   geometry() {
     const T = this.input.trebuchet;
@@ -498,14 +522,17 @@ export class ShotSim {
   free() { this.world.free(); this.eq.free(); }
 }
 
-export function createShot(R: Rapier, input: ShotInput, castle: CastleState): ShotSim {
+export interface ShotOptions { stopAtImpact?: boolean }
+
+export function createShot(R: Rapier, input: ShotInput, castle: CastleState, opts: ShotOptions = {}): ShotSim {
   const s = new ShotSim(R, input, castle);
   s._attachCastleMeta(castle);
+  s.stopAtImpact = !!opts.stopAtImpact;
   return s;
 }
 
 /** Headless: simulate a whole shot and return the authoritative result. */
-export function runShot(R: Rapier, input: ShotInput, castle: CastleState): ShotResult {
-  const s = createShot(R, input, castle);
+export function runShot(R: Rapier, input: ShotInput, castle: CastleState, opts: ShotOptions = {}): ShotResult {
+  const s = createShot(R, input, castle, opts);
   try { return s.run(); } finally { s.free(); }
 }

@@ -1,5 +1,5 @@
-import type { BlockMaterial, BlockState, CastleConfig, CastleState } from './types';
-import { BLOCK_MATERIALS, CASTLE_DISTANCE } from './catalog';
+import type { BlockMaterial, BlockState, CastleConfig, CastleState } from './types.ts';
+import { BLOCK_MATERIALS, CASTLE_DISTANCE } from './catalog.ts';
 
 export const BLOCK_DEPTH = 1.0; // metres into the screen, for mass/volume
 

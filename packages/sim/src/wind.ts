@@ -1,5 +1,5 @@
-import type { WindSpec } from './types';
-import { mulberry32 } from './rng';
+import type { WindSpec } from './types.ts';
+import { mulberry32 } from './rng.ts';
 
 const REF_HEIGHT = 10;
 const SHEAR_EXP = 0.14; // open terrain power-law exponent
