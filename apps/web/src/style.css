@@ -1,0 +1,83 @@
+:root {
+  --bg: #1b1a26;
+  --panel: rgba(24, 22, 36, 0.86);
+  --panel-2: rgba(40, 36, 58, 0.9);
+  --ink: #f1e9d8;
+  --muted: #a89f8f;
+  --accent: #e0a24a;
+  --accent-2: #c8553d;
+  --good: #6fb36a;
+  --bad: #d9534f;
+  --radius: 14px;
+  font-family: "Trebuchet MS", "Segoe UI", system-ui, sans-serif;
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); overflow: hidden; touch-action: none; }
+#stage, #stage canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+#ui { position: fixed; inset: 0; pointer-events: none; display: flex; flex-direction: column; }
+#ui > * { pointer-events: auto; }
+
+.topbar {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: calc(env(safe-area-inset-top) + 8px) 12px 8px;
+  background: linear-gradient(to bottom, rgba(0,0,0,0.55), transparent);
+}
+.topbar .title { font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; font-size: 14px; color: var(--accent); }
+.topbar .pill { background: var(--panel); border-radius: 999px; padding: 4px 10px; font-size: 12px; color: var(--muted); white-space: nowrap; }
+.topbar .pill b { color: var(--ink); }
+
+.spacer { flex: 1; pointer-events: none !important; }
+
+.panel {
+  background: var(--panel); backdrop-filter: blur(8px);
+  border-top-left-radius: var(--radius); border-top-right-radius: var(--radius);
+  padding: 10px 14px calc(env(safe-area-inset-bottom) + 12px);
+  max-height: 60vh; overflow-y: auto;
+}
+.panel h2 { margin: 2px 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); }
+
+.tabs { display: flex; gap: 6px; margin-bottom: 8px; }
+.tabs button { flex: 1; }
+button {
+  background: var(--panel-2); color: var(--ink); border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px; padding: 10px 12px; font: inherit; font-size: 14px; font-weight: 600;
+}
+button.active, button.primary { background: var(--accent); color: #241a0a; border-color: transparent; }
+button.danger { background: var(--accent-2); color: #fff; }
+button.big { font-size: 18px; padding: 14px; width: 100%; letter-spacing: 0.05em; text-transform: uppercase; }
+button:disabled { opacity: 0.45; }
+
+.row { display: flex; align-items: center; gap: 10px; margin: 6px 0; font-size: 13px; }
+.row label { flex: 0 0 38%; color: var(--muted); }
+.row input[type=range] { flex: 1; accent-color: var(--accent); }
+.row .val { flex: 0 0 64px; text-align: right; font-variant-numeric: tabular-nums; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0; }
+.chips button { padding: 6px 10px; font-size: 12px; }
+.cost { display: flex; justify-content: space-between; font-size: 13px; margin: 8px 0; color: var(--muted); }
+.cost b { color: var(--ink); }
+.cost .over { color: var(--bad); }
+
+.hud { display: flex; flex-direction: column; gap: 6px; padding: 0 12px; }
+.bars { display: flex; gap: 10px; }
+.bar { flex: 1; background: rgba(0,0,0,0.45); border-radius: 8px; padding: 6px 8px; font-size: 12px; }
+.bar .track { height: 8px; background: rgba(255,255,255,0.12); border-radius: 4px; overflow: hidden; margin-top: 4px; }
+.bar .fill { height: 100%; background: var(--good); transition: width 0.4s; }
+.bar.enemy .fill { background: var(--accent-2); }
+.wind { align-self: center; background: rgba(0,0,0,0.45); border-radius: 999px; padding: 4px 12px; font-size: 13px; }
+.toast {
+  align-self: center; background: var(--panel); border-radius: 12px; padding: 10px 16px; font-size: 15px; font-weight: 700;
+  margin-top: 8px; animation: pop 0.25s ease-out;
+}
+@keyframes pop { from { transform: scale(0.8); opacity: 0; } }
+
+.modal {
+  position: absolute; inset: 0; display: grid; place-items: start center; padding-top: 9vh; background: rgba(0,0,0,0.35);
+}
+.modal .card { background: var(--panel-2); border-radius: var(--radius); padding: 20px; width: min(92vw, 420px); }
+.modal h1 { margin: 0 0 6px; font-size: 24px; color: var(--accent); }
+.modal p { margin: 6px 0; color: var(--muted); font-size: 14px; }
+.modal .stack { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.small { font-size: 12px; color: var(--muted); }
+.lb { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 8px; }
+.lb td { padding: 4px 6px; border-bottom: 1px solid rgba(255,255,255,0.06); }
+.lb td:last-child { text-align: right; font-variant-numeric: tabular-nums; }

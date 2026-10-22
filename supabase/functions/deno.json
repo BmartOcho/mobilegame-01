@@ -1,0 +1,6 @@
+{
+  "imports": {
+    "@dimforge/rapier2d-deterministic-compat": "npm:@dimforge/rapier2d-deterministic-compat@0.21.0",
+    "@supabase/supabase-js": "npm:@supabase/supabase-js@2"
+  }
+}

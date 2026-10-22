@@ -1,0 +1,16 @@
+{
+  "name": "@siege/functions",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "tsx submit-turn/core.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@dimforge/rapier2d-deterministic-compat": "0.21.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}
